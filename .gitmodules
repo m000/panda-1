@@ -1,0 +1,3 @@
+[submodule "vncserv/tools/Chaosreader"]
+	path = vncserv/tools/Chaosreader
+	url = https://github.com/brendangregg/Chaosreader.git
