@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from ConfigParser import ConfigParser
+from ConfigParser import ConfigParser, NoOptionError
 import os
 import pexpect
 
@@ -27,40 +27,37 @@ import pexpect
 # -readconfig <file>
 # -writeconfig <file>
 #                 read/write config file
+#  -snapshot - Temporary snapshot: write all changes to temporary files instead of hard drive image.
+
+# -hda OVERLAY.img - Overlay snapshot: write all changes to an overlay image instead of hard drive image. The original image is kept unmodified. To create the overlay image:
+
+# user $qemu-img create -f qcow2 -b ORIGINAL.img OVERLAY.img
 
 
 class QEMUError(Exception):
 	def __init__(self, value):
 		self.value = value
-	def __str__(self):
+	def __unicode__(self):
 		return repr(self.value)
+	def __str__(self):
+		return unicode(self).encode('utf-8')
 
-class QEMUConfError(Exception):
-	pass
 
 class QEMU:
 	def __init__(self, conf_name, conf_file='qemu.ini'):
-		# Get configuration items.
+		# Read configuration file.
 		self.conf_parser = ConfigParser()
 		self.conf_file = conf_file
 		self.conf_name = conf_name
-		try:
-			self.conf_parser.readfp(open(self.conf_file))
-		except:
-			raise QEMUConfError("Can't read config file '%s'." % (self.conf_file))
-		if not self.conf_parser.has_section(self.conf_name):
-			raise QEMUConfError("Can't read config '%s' from file '%s'." % (
-				self.conf_name, self.conf_file
-			))
-		self.conf = dict(self.conf_parser.items(self.conf_name))
+		self.conf_parser.readfp(open(self.conf_file))
 
-		# Check required items.
+		# Get configuration values.
+		self.qemu_cmd_fmt = self.conf_parser.get('qemu-controller', 'qemu_cmd_fmt')
+		self.conf = dict(self.conf_parser.items(self.conf_name))
 		required = ['qemu', 'qcow_dir', 'vmhda', 'vmram']
-		missing = [i for i in required if not i in self.conf]
+		missing = [opt for opt in required if not opt in self.conf]
 		if missing:
-			raise QEMUConfError("Can't find required option%s %s in config '%s' of file '%s'." % (
-				's' if len(missing)>1 else '', missing, self.conf_name, self.conf_file
-			))
+			raise NoOptionError(missing, self.conf_name)
 
 		# Fix-up configuration values.
 		path_expand = lambda s: os.path.expandvars(os.path.expanduser(s))
@@ -68,18 +65,11 @@ class QEMU:
 		self.conf['qcow_dir'] = path_expand(self.conf['qcow_dir'])
 		self.conf['vmhda'] = os.path.join(self.conf['qcow_dir'], self.conf['vmhda'])
 		self.conf['vmram'] = int(self.conf['vmram'])
+		self.conf['vmname'] = self.conf_name
 
 		print self.conf
-
-		# ./i386-softmmu/qemu-system-i386 -m 256 -hda ../../pandavm/debian.qcow2 -vnc :0 -monitor telnet:127.0.0.1:1234,server
-
-
-		qemu_cmd_fmt = '{qemu} -display vnc=:0 -m {vmram} -name lolo -mem-prealloc -hda {vmhda}'
-		print qemu_cmd_fmt.format(**self.conf)
-		self.monitor = pexpect.spawn(qemu_cmd_fmt.format(**self.conf))
-
-		# print self.qemu, self.vmhda, self.vmram
-
+		print self.qemu_cmd_fmt.format(**self.conf)
+		# self.monitor = pexpect.spawn(qemu_cmd_fmt.format(**self.conf))
 
 	def start(self):
 		pass
