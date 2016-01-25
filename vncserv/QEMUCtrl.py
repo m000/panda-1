@@ -113,10 +113,10 @@ class QEMU:
 		# Start process and wait for connection prompt.
 		qemu_process = pexpect.spawn(self.qemu_cmd_fmt.format(**self.conf))
 		try:
-			r = qemu_process.expect('QEMU waiting for connection', timeout=3)
+			r = qemu_process.expect('QEMU waiting for connection.*', timeout=3)
 			QEMU.log.info('QEMU started. Monitor on {vmmonhost}:{vmmonport}.'.format(**self.conf))
 			self.qemu_process = qemu_process
-			self.qemu_process.interact()
+			self.qemu_process.wait()
 			QEMU.log.info('QEMU finished.')
 		except pexpect.TIMEOUT:
 			QEMU.log.error('QEMU failed to start (?).')
