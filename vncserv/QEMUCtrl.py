@@ -44,6 +44,8 @@ class QEMUError(Exception):
 
 
 class QEMU:
+	MONITOR_PROMPT = '\(qemu\) '
+
 	def __init__(self, conf_name, conf_file='qemu.ini'):
 		'''	Starts a QEMU process with the specified configuration.
 			It is expected that the format string used to start the process
@@ -98,7 +100,6 @@ class QEMU:
 
 		# Initialized other values.
 		self.qemu_process = None
-		self.qemu_monitor = None
 		self.qemu_thread = threading.Thread(target=self.__qemu_runner)
 		self.qemu_thread.start()
 
@@ -111,7 +112,9 @@ class QEMU:
 			All interactions happen through the QEMU monitor.
 		'''
 		# Start process and wait for connection prompt.
-		qemu_process = pexpect.spawn(self.qemu_cmd_fmt.format(**self.conf))
+		qemu_cmd = self.qemu_cmd_fmt.format(**self.conf)
+		qemu_process = pexpect.spawn(qemu_cmd)
+		print qemu_cmd
 		try:
 			r = qemu_process.expect('QEMU waiting for connection.*', timeout=3)
 			QEMU.log.info('QEMU started. Monitor on {vmmonhost}:{vmmonport}.'.format(**self.conf))
@@ -121,34 +124,53 @@ class QEMU:
 		except pexpect.TIMEOUT:
 			QEMU.log.error('QEMU failed to start (?).')
 
-
-	def start(self):
-		'''	Connects to QEMU monitor, which triggers the start of the execution.
+	def raw_cmd(self, cmd=None, wait=True):
+		'''	Connect to the QEMU monitor send the specified command.
+			If wait is True, then also wait for the next monitor prompt.
+			We prefer to disconnect after each command because QEMU supports only
+			one client connected to the monitor.
 		'''
-		if self.qemu_monitor:
-			QEMU.log.info('QEMU already started. Monitor on {vmmonhost}:{vmmonport}.'.format(**self.conf))
-			return
 		if not self.qemu_process:
 			# No process yet. Wait a few secs.
 			QEMU.log.info('Waiting for QEMU monitor...')
-			time.sleep(3)
+			time.sleep(2)
 		try:
 			ctuple = (self.conf['vmmonhost'], self.conf['vmmonport'])
-			self.qemu_monitor = socket.socket()
-			self.qemu_monitor.connect(ctuple)
-			QEMU.log.info('Go')
-			self.qemu_monitor.close()
+			qemu_monitor = socket.socket()
+			qemu_monitor.connect(ctuple)
+			QEMU.log.debug('Connected to {vmmonhost}:{vmmonport}.'.format(**self.conf))
+			fdp = pexpect.fdpexpect.fdspawn(qemu_monitor)
+			fdp.expect(QEMU.MONITOR_PROMPT)
+			if cmd:
+				fdp.sendline(cmd)
+				if wait:
+					fdp.expect(QEMU.MONITOR_PROMPT)
+			QEMU.log.debug('Sent command {cmd} to {vmmonhost}:{vmmonport}.'.format(cmd=cmd, **self.conf))
+			qemu_monitor.close()
 		except:
 			QEMU.log.error('Could not connect to QEMU monitor on {vmmonhost}:{vmmonport}.'.format(**self.conf))
 			raise
 
+	def start(self):
+		'''	Connect to QEMU monitor and do nothing. This triggers the start of
+			the execution if 'wait' has been specified for the monitor.
+		'''
+		self.raw_cmd()
+
+	def powerdown(self):
+		''' Send a system_powerdown command to the QEMU monitor.
+		'''
+		self.raw_cmd('system_powerdown')
+
+	def reset(self):
+		''' Send a system_reset command to the QEMU monitor.
+		'''
+		self.raw_cmd('system_reset')
+
 	def kill(self):
-		'''Terminates the QEMU process.
+		''' Terminates the QEMU process.
 		'''
 		self.qemu_process.terminate()
-
-	def raw_command(self, cmd):
-		pass
 
 
 class PANDA(QEMU):

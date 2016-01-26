@@ -16,6 +16,16 @@ def index():
 def novnc(vmid):
 	return render_template('vnc.html', vmconf=panda.conf)
 
+@app.route('/novnc/<vmid>/vm_powerdown')
+def vm_powerdown(vmid):
+	panda.powerdown()
+	return 'Now wait...'
+
+@app.route('/novnc/<vmid>/vm_reset')
+def vm_reset(vmid):
+	panda.reset()
+	return 'Now wait...'
+
 # @app.route('/novnc/include/<path>')
 # def novnc_static_redirect(path):
 # 	'''	Redirect files loaded dynamically through javascript to the proper url.
@@ -41,7 +51,8 @@ if __name__ == '__main__':
 
 	# Debug info
 	# print app.url_map
-
+	# time.sleep(2)
+	# panda.kill()
 	# http://stackoverflow.com/q/9449101
 	app.run(debug = True, use_reloader=False)
 	# app.run(host='0.0.0.0', debug = True, use_reloader=False)

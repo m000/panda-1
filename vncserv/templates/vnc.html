@@ -237,7 +237,8 @@
                 return; // don't continue trying to connect
             }
 
-            rfb.connect(host, port, password, path);
+            {# rfb.connect(host, port, password, path); #}
+            rfb.connect('127.0.0.1', 15000, '', path);
         };
         </script>
 
