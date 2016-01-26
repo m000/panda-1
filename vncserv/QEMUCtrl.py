@@ -177,10 +177,16 @@ class PANDA(QEMU):
 	trace_file = None
 
 	def begin_record(self, trace_file=None):
-		pass
+		''' Starts recording a PANDA trace.
+		'''
+		self.raw_cmd('begin_record %s' % (trace_file))
+		self.trace_file = trace_file
 
 	def end_record(self):
-		pass
+		''' Stop recording a PANDA trace.
+		'''
+		self.raw_cmd('end_record')
+		self.trace_file = None
 
 	def is_recording(self):
 		return False if trace_file is None else True

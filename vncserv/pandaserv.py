@@ -12,18 +12,28 @@ panda = None
 def index():
 	return 'Hello World!'
 
-@app.route('/novnc/<vmid>')
-def novnc(vmid):
+@app.route('/vm/<vmid>/vnc')
+def vnc(vmid):
 	return render_template('vnc.html', vmconf=panda.conf)
 
-@app.route('/novnc/<vmid>/vm_powerdown')
+@app.route('/vm/<vmid>/powerdown')
 def vm_powerdown(vmid):
 	panda.powerdown()
 	return 'Now wait...'
 
-@app.route('/novnc/<vmid>/vm_reset')
+@app.route('/vm/<vmid>/reset')
 def vm_reset(vmid):
 	panda.reset()
+	return 'Now wait...'
+
+@app.route('/vm/<vmid>/begin_record/<trace_file>')
+def vm_begin_record(vmid, trace_file):
+	panda.begin_record(trace_file)
+	return 'Now wait...'
+
+@app.route('/vm/<vmid>/end_record')
+def vm_end_record(vmid):
+	panda.end_record()
 	return 'Now wait...'
 
 # @app.route('/novnc/include/<path>')
