@@ -61,6 +61,7 @@ typedef struct {
 	bool debug;									// debug mode
 	std::ofstream taint_out;					// taint output stream
 	TaintCountMap taint_count;
+	char *last_filename;
 } plugin_state;
 
 // globals
@@ -133,8 +134,8 @@ int asid_change_cb(CPUState *env, target_ulong oldval, target_ulong newval) {
 
 
 #ifdef TARGET_I386
-static int label_process(uint32_t el, void *sup) {
-	fts.taint_out << " " << el;
+static int label_print(uint32_t el, void *sup) {
+	fts.taint_out << "_" << el;
 	return 0; // continues with next label
 }
 
@@ -176,34 +177,35 @@ void linux_write_return(CPUState* env, target_ulong pc, uint32_t fd, uint32_t bu
 	}
 	if (!watched) goto end;
 
+	// retrieve filename/offset and update state
 	if (filename == NULL) {
-		filename = g_strdup_printf("(%s~%d,%d)", ps->p->name, (int)ps->p->pid, (int)fd);
+		filename = g_strdup_printf("%s_pid%d.fd%d", ps->p->name, (int)ps->p->pid, (int)fd);
+	}
+	if (g_strcmp0(fts.last_filename, filename) != 0) {
+		g_free(fts.last_filename);
+		fts.last_filename = g_strdup(filename);
+		fts.taint_out << std::endl << "# " << filename << std::endl;
 	}
 	if (fts.taint_count.find(filename) == fts.taint_count.end()) {
 		fts.taint_count[filename] = 0;
 	}
-
 	fileoffset = osi_linux_fd_to_pos(env, ps->p, fd);
 	if (fileoffset > 0) { fileoffset -= nwritten; }
 
 	if (taint2_enabled()) {
 		uint32_t pa;	// physical address
 		uint32_t tc;	// taint cardinality
-		uint8_t *b = NULL;
 		int32_t last_tainted = -1;
 		int32_t last_clean = -1;
+		uint8_t *b = (uint8_t *)g_malloc(nwritten * sizeof(uint8_t));
+		panda_virtual_memory_rw(env, buf, b, nwritten * sizeof(uint8_t), 0);
 
 		for (int32_t i=0; i<nwritten; i++) {
 			pa = panda_virt_to_phys(env, buf+i);
 			tc = taint2_query_ram(pa);
 			if (tc == 0) {
 				last_clean = i;
-				continue;
-			}
-
-			if (b == NULL) {
-				b = (uint8_t *)g_malloc(nwritten * sizeof(uint8_t));
-				panda_virtual_memory_rw(env, buf, b, nwritten * sizeof(uint8_t), 0);
+				goto do_log;
 			}
 
 			// print islands of non tainted bytes among tainted bytes
@@ -220,14 +222,19 @@ void linux_write_return(CPUState* env, target_ulong pc, uint32_t fd, uint32_t bu
 					g_free(s);
 				}
 			}
-
 			last_tainted = i;
 			taint_count++;
 
-			fts.taint_out << TAINT_PREFIX << filename << ":" << i;
-			fts.taint_out << ":" << std::hex << b[i] << std::dec;
-			fts.taint_out << ":" << tc << "=";
-			taint2_labelset_ram_iter(pa, label_process, NULL);
+do_log:
+			fts.taint_out << std::setw(6) << fileoffset+i << ":";
+			if (g_ascii_isalnum(b[i]) || g_ascii_ispunct(b[i])) {
+				fts.taint_out << std::setw(2) << b[i];
+			}
+			else {
+				fts.taint_out << std::setw(2) << std::hex << (int)b[i] << std::dec;
+			}
+			fts.taint_out << ":" << tc << ":";
+			taint2_labelset_ram_iter(pa, label_print, NULL);
 			fts.taint_out << std::endl;
 		}
 		g_free(b);
