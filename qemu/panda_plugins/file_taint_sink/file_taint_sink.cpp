@@ -226,12 +226,13 @@ void linux_write_return(CPUState* env, target_ulong pc, uint32_t fd, uint32_t bu
 			taint_count++;
 
 do_log:
+
 			fts.taint_out << std::setw(6) << fileoffset+i << ":";
 			if (g_ascii_isalnum(b[i]) || g_ascii_ispunct(b[i])) {
-				fts.taint_out << std::setw(2) << b[i];
+				fts.taint_out << " '" << b[i] << "'";
 			}
 			else {
-				fts.taint_out << std::setw(2) << std::hex << (int)b[i] << std::dec;
+				fts.taint_out << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)b[i] << std::dec;
 			}
 			fts.taint_out << ":" << tc << ":";
 			taint2_labelset_ram_iter(pa, label_print, NULL);
